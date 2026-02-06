@@ -1,13 +1,12 @@
 # ==============================================================================
 # cd.yml - Continuous Deployment Workflow
-# Control 3.4 Automated Deployment Demo
+# Control 3.4 Automated Deployment Demo - Landing Zone Foundation
 # ==============================================================================
 name: Bicep CD
 
 on:
   push:
-    branches:
-      - main
+    branches: [ main ]
     paths:
       - 'bicep/**'
       - '.github/workflows/cd.yml'
@@ -18,42 +17,40 @@ permissions:
 
 jobs:
   deploy:
-    name: Deploy to Azure
+    name: Deploy Landing Zone
     runs-on: ubuntu-latest
 
     steps:
-      # Step 1: Checkout repository
       - name: Checkout repository
         uses: actions/checkout@v4
 
-      # Step 2: Azure Login
       - name: Azure Login
         uses: azure/login@v1
         with:
           creds: ${{ secrets.AZURE_CREDENTIALS }}
 
-      # Step 3: Deploy Bicep Template
       - name: Deploy Bicep Template
         run: |
-          echo "=== Starting Deployment ==="
+          echo "=== Starting Landing Zone Deployment ==="
           echo "Resource Group: ${{ secrets.RESOURCE_GROUP }}"
           echo "Template: bicep/main.bicep"
           
           az deployment group create \
-            --name "deployment-$(date +%Y%m%d-%H%M%S)" \
+            --name "lz-deployment-$(date +%Y%m%d-%H%M%S)" \
             --resource-group ${{ secrets.RESOURCE_GROUP }} \
             --template-file bicep/main.bicep \
-            --parameters bicep/parameters.json \
-            --parameters vmAdminUsername=${{ secrets.VM_ADMIN_USERNAME }} \
-            --parameters vmAdminPassword=${{ secrets.VM_ADMIN_PASSWORD }}
+            --parameters bicep/parameters.json
           
           echo "=== Deployment Completed ==="
 
-      # Step 4: Show Deployment Outputs
       - name: Show Deployment Outputs
         run: |
           echo "=== Deployment Outputs ==="
+          DEPLOYMENT_NAME=$(az deployment group list \
+            --resource-group ${{ secrets.RESOURCE_GROUP }} \
+            --query '[0].name' -o tsv)
+          
           az deployment group show \
             --resource-group ${{ secrets.RESOURCE_GROUP }} \
-            --name "$(az deployment group list --resource-group ${{ secrets.RESOURCE_GROUP }} --query '[0].name' -o tsv)" \
+            --name "$DEPLOYMENT_NAME" \
             --query 'properties.outputs' -o json

@@ -2,11 +2,38 @@
   "$schema": "https://schema.management.azure.com/schemas/2019-04-01/deploymentParameters.json#",
   "contentVersion": "1.0.0.0",
   "parameters": {
-    "vmName": {
-      "value": "vm-demo"
+    "environment": {
+      "value": "dev"
     },
-    "vmSize": {
-      "value": "Standard_B2s"
+    "projectName": {
+      "value": "lz-demo"
+    },
+    "vnetAddressPrefix": {
+      "value": "10.0.0.0/16"
+    },
+    "subnets": {
+      "value": [
+        {
+          "name": "snet-web",
+          "addressPrefix": "10.0.1.0/24",
+          "serviceEndpoints": ["Microsoft.Storage", "Microsoft.Sql"]
+        },
+        {
+          "name": "snet-app",
+          "addressPrefix": "10.0.2.0/24",
+          "serviceEndpoints": ["Microsoft.Storage", "Microsoft.Sql"]
+        },
+        {
+          "name": "snet-db",
+          "addressPrefix": "10.0.3.0/24",
+          "serviceEndpoints": ["Microsoft.Storage", "Microsoft.Sql"]
+        },
+        {
+          "name": "AzureBastionSubnet",
+          "addressPrefix": "10.0.255.0/26",
+          "serviceEndpoints": []
+        }
+      ]
     }
   }
 }

@@ -1,13 +1,12 @@
 # ==============================================================================
 # ci.yml - Continuous Integration Workflow
-# Control 3.4 Automated Deployment Demo
+# Control 3.4 Automated Deployment Demo - Landing Zone Foundation
 # ==============================================================================
 name: Bicep CI
 
 on:
   pull_request:
-    branches:
-      - main
+    branches: [ main ]
     paths:
       - 'bicep/**'
       - '.github/workflows/ci.yml'
@@ -22,30 +21,24 @@ jobs:
     runs-on: ubuntu-latest
 
     steps:
-      # Step 1: Checkout repository
       - name: Checkout repository
         uses: actions/checkout@v4
 
-      # Step 2: Azure Login
       - name: Azure Login
         uses: azure/login@v1
         with:
           creds: ${{ secrets.AZURE_CREDENTIALS }}
 
-      # Step 3: Bicep Build (Syntax Check)
-      - name: Bicep Build
+      - name: Bicep Build (Syntax Check)
         run: |
           echo "=== Bicep Build (Syntax Check) ==="
           az bicep build --file bicep/main.bicep
           echo "Bicep build completed successfully"
 
-      # Step 4: What-If Analysis
       - name: What-If Analysis
         run: |
           echo "=== What-If Analysis ==="
           az deployment group what-if \
             --resource-group ${{ secrets.RESOURCE_GROUP }} \
             --template-file bicep/main.bicep \
-            --parameters bicep/parameters.json \
-            --parameters vmAdminUsername=${{ secrets.VM_ADMIN_USERNAME }} \
-            --parameters vmAdminPassword=${{ secrets.VM_ADMIN_PASSWORD }}
+            --parameters bicep/parameters.json

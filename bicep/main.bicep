@@ -133,3 +133,4 @@ resource vm 'Microsoft.Compute/virtualMachines@2023-09-01' = {
 // Outputs
 output vmId string = vm.id
 output publicIpAddress string = pip.properties.ipAddress
+resource broken

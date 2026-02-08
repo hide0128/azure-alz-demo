@@ -5,7 +5,7 @@
     "_generator": {
       "name": "bicep",
       "version": "0.40.2.10011",
-      "templateHash": "14064391296705320055"
+      "templateHash": "966526291896528841"
     }
   },
   "parameters": {
@@ -16,48 +16,212 @@
         "description": "Location for all resources"
       }
     },
-    "vmName": {
+    "environment": {
       "type": "string",
-      "defaultValue": "vm-demo",
+      "defaultValue": "dev",
+      "allowedValues": [
+        "dev",
+        "stg",
+        "prd"
+      ],
       "metadata": {
-        "description": "VM name"
+        "description": "Environment name (dev, stg, prd)"
       }
     },
-    "vmSize": {
+    "projectName": {
       "type": "string",
-      "defaultValue": "Standard_B2s",
+      "defaultValue": "lz-demo",
       "metadata": {
-        "description": "VM size"
+        "description": "Project or workload name"
       }
     },
-    "vmAdminUsername": {
-      "type": "securestring",
+    "vnetAddressPrefix": {
+      "type": "string",
+      "defaultValue": "10.0.0.0/16",
       "metadata": {
-        "description": "Admin username for the VM"
+        "description": "VNet address space"
       }
     },
-    "vmAdminPassword": {
-      "type": "securestring",
+    "subnets": {
+      "type": "array",
+      "defaultValue": [
+        {
+          "name": "snet-web",
+          "addressPrefix": "10.0.1.0/24",
+          "serviceEndpoints": [
+            "Microsoft.Storage",
+            "Microsoft.Sql"
+          ]
+        },
+        {
+          "name": "snet-app",
+          "addressPrefix": "10.0.2.0/24",
+          "serviceEndpoints": [
+            "Microsoft.Storage",
+            "Microsoft.Sql"
+          ]
+        },
+        {
+          "name": "snet-db",
+          "addressPrefix": "10.0.3.0/24",
+          "serviceEndpoints": [
+            "Microsoft.Storage",
+            "Microsoft.Sql"
+          ]
+        },
+        {
+          "name": "AzureBastionSubnet",
+          "addressPrefix": "10.0.255.0/26",
+          "serviceEndpoints": []
+        }
+      ],
       "metadata": {
-        "description": "Admin password for the VM"
+        "description": "Subnet configurations"
+      }
+    },
+    "tags": {
+      "type": "object",
+      "defaultValue": {
+        "Environment": "[parameters('environment')]",
+        "Project": "[parameters('projectName')]",
+        "ManagedBy": "Bicep",
+        "CreatedDate": "[utcNow('yyyy-MM-dd')]"
+      },
+      "metadata": {
+        "description": "Tags to apply to all resources"
       }
     }
   },
   "variables": {
-    "vnetName": "[format('vnet-{0}', parameters('vmName'))]",
-    "subnetName": "snet-default",
-    "nicName": "[format('nic-{0}', parameters('vmName'))]",
-    "nsgName": "[format('nsg-{0}', parameters('vmName'))]",
-    "pipName": "[format('pip-{0}', parameters('vmName'))]"
+    "namingPrefix": "[format('{0}-{1}', parameters('projectName'), parameters('environment'))]",
+    "vnetName": "[format('vnet-{0}', variables('namingPrefix'))]",
+    "nsgWebName": "[format('nsg-{0}-web', variables('namingPrefix'))]",
+    "nsgAppName": "[format('nsg-{0}-app', variables('namingPrefix'))]",
+    "nsgDbName": "[format('nsg-{0}-db', variables('namingPrefix'))]"
   },
   "resources": [
     {
       "type": "Microsoft.Network/networkSecurityGroups",
       "apiVersion": "2023-09-01",
-      "name": "[variables('nsgName')]",
+      "name": "[variables('nsgWebName')]",
       "location": "[parameters('location')]",
+      "tags": "[parameters('tags')]",
       "properties": {
-        "securityRules": []
+        "securityRules": [
+          {
+            "name": "AllowHTTPS",
+            "properties": {
+              "priority": 100,
+              "direction": "Inbound",
+              "access": "Allow",
+              "protocol": "Tcp",
+              "sourcePortRange": "*",
+              "destinationPortRange": "443",
+              "sourceAddressPrefix": "Internet",
+              "destinationAddressPrefix": "*"
+            }
+          },
+          {
+            "name": "AllowHTTP",
+            "properties": {
+              "priority": 110,
+              "direction": "Inbound",
+              "access": "Allow",
+              "protocol": "Tcp",
+              "sourcePortRange": "*",
+              "destinationPortRange": "80",
+              "sourceAddressPrefix": "Internet",
+              "destinationAddressPrefix": "*"
+            }
+          },
+          {
+            "name": "DenyAllInbound",
+            "properties": {
+              "priority": 4096,
+              "direction": "Inbound",
+              "access": "Deny",
+              "protocol": "*",
+              "sourcePortRange": "*",
+              "destinationPortRange": "*",
+              "sourceAddressPrefix": "*",
+              "destinationAddressPrefix": "*"
+            }
+          }
+        ]
+      }
+    },
+    {
+      "type": "Microsoft.Network/networkSecurityGroups",
+      "apiVersion": "2023-09-01",
+      "name": "[variables('nsgAppName')]",
+      "location": "[parameters('location')]",
+      "tags": "[parameters('tags')]",
+      "properties": {
+        "securityRules": [
+          {
+            "name": "AllowWebTier",
+            "properties": {
+              "priority": 100,
+              "direction": "Inbound",
+              "access": "Allow",
+              "protocol": "Tcp",
+              "sourcePortRange": "*",
+              "destinationPortRange": "8080",
+              "sourceAddressPrefix": "10.0.1.0/24",
+              "destinationAddressPrefix": "*"
+            }
+          },
+          {
+            "name": "DenyInternetInbound",
+            "properties": {
+              "priority": 4096,
+              "direction": "Inbound",
+              "access": "Deny",
+              "protocol": "*",
+              "sourcePortRange": "*",
+              "destinationPortRange": "*",
+              "sourceAddressPrefix": "Internet",
+              "destinationAddressPrefix": "*"
+            }
+          }
+        ]
+      }
+    },
+    {
+      "type": "Microsoft.Network/networkSecurityGroups",
+      "apiVersion": "2023-09-01",
+      "name": "[variables('nsgDbName')]",
+      "location": "[parameters('location')]",
+      "tags": "[parameters('tags')]",
+      "properties": {
+        "securityRules": [
+          {
+            "name": "AllowAppTier",
+            "properties": {
+              "priority": 100,
+              "direction": "Inbound",
+              "access": "Allow",
+              "protocol": "Tcp",
+              "sourcePortRange": "*",
+              "destinationPortRange": "1433",
+              "sourceAddressPrefix": "10.0.2.0/24",
+              "destinationAddressPrefix": "*"
+            }
+          },
+          {
+            "name": "DenyInternetInbound",
+            "properties": {
+              "priority": 4096,
+              "direction": "Inbound",
+              "access": "Deny",
+              "protocol": "*",
+              "sourcePortRange": "*",
+              "destinationPortRange": "*",
+              "sourceAddressPrefix": "Internet",
+              "destinationAddressPrefix": "*"
+            }
+          }
+        ]
       }
     },
     {
@@ -65,115 +229,108 @@
       "apiVersion": "2023-09-01",
       "name": "[variables('vnetName')]",
       "location": "[parameters('location')]",
+      "tags": "[parameters('tags')]",
       "properties": {
         "addressSpace": {
           "addressPrefixes": [
-            "10.0.0.0/16"
+            "[parameters('vnetAddressPrefix')]"
           ]
         },
         "subnets": [
           {
-            "name": "[variables('subnetName')]",
+            "name": "[parameters('subnets')[0].name]",
             "properties": {
-              "addressPrefix": "10.0.1.0/24",
+              "copy": [
+                {
+                  "name": "serviceEndpoints",
+                  "count": "[length(parameters('subnets')[0].serviceEndpoints)]",
+                  "input": {
+                    "service": "[parameters('subnets')[0].serviceEndpoints[copyIndex('serviceEndpoints')]]"
+                  }
+                }
+              ],
+              "addressPrefix": "[parameters('subnets')[0].addressPrefix]",
               "networkSecurityGroup": {
-                "id": "[resourceId('Microsoft.Network/networkSecurityGroups', variables('nsgName'))]"
+                "id": "[resourceId('Microsoft.Network/networkSecurityGroups', variables('nsgWebName'))]"
               }
             }
-          }
-        ]
-      },
-      "dependsOn": [
-        "[resourceId('Microsoft.Network/networkSecurityGroups', variables('nsgName'))]"
-      ]
-    },
-    {
-      "type": "Microsoft.Network/publicIPAddresses",
-      "apiVersion": "2023-09-01",
-      "name": "[variables('pipName')]",
-      "location": "[parameters('location')]",
-      "sku": {
-        "name": "Standard"
-      },
-      "properties": {
-        "publicIPAllocationMethod": "Static"
-      }
-    },
-    {
-      "type": "Microsoft.Network/networkInterfaces",
-      "apiVersion": "2023-09-01",
-      "name": "[variables('nicName')]",
-      "location": "[parameters('location')]",
-      "properties": {
-        "ipConfigurations": [
-          {
-            "name": "ipconfig1",
-            "properties": {
-              "privateIPAllocationMethod": "Dynamic",
-              "publicIPAddress": {
-                "id": "[resourceId('Microsoft.Network/publicIPAddresses', variables('pipName'))]"
-              },
-              "subnet": {
-                "id": "[reference(resourceId('Microsoft.Network/virtualNetworks', variables('vnetName')), '2023-09-01').subnets[0].id]"
-              }
-            }
-          }
-        ]
-      },
-      "dependsOn": [
-        "[resourceId('Microsoft.Network/publicIPAddresses', variables('pipName'))]",
-        "[resourceId('Microsoft.Network/virtualNetworks', variables('vnetName'))]"
-      ]
-    },
-    {
-      "type": "Microsoft.Compute/virtualMachines",
-      "apiVersion": "2023-09-01",
-      "name": "[parameters('vmName')]",
-      "location": "[parameters('location')]",
-      "properties": {
-        "hardwareProfile": {
-          "vmSize": "[parameters('vmSize')]"
-        },
-        "osProfile": {
-          "computerName": "[parameters('vmName')]",
-          "adminUsername": "[parameters('vmAdminUsername')]",
-          "adminPassword": "[parameters('vmAdminPassword')]"
-        },
-        "storageProfile": {
-          "imageReference": {
-            "publisher": "MicrosoftWindowsServer",
-            "offer": "WindowsServer",
-            "sku": "2022-datacenter-azure-edition",
-            "version": "latest"
           },
-          "osDisk": {
-            "createOption": "FromImage",
-            "managedDisk": {
-              "storageAccountType": "Premium_LRS"
+          {
+            "name": "[parameters('subnets')[1].name]",
+            "properties": {
+              "copy": [
+                {
+                  "name": "serviceEndpoints",
+                  "count": "[length(parameters('subnets')[1].serviceEndpoints)]",
+                  "input": {
+                    "service": "[parameters('subnets')[1].serviceEndpoints[copyIndex('serviceEndpoints')]]"
+                  }
+                }
+              ],
+              "addressPrefix": "[parameters('subnets')[1].addressPrefix]",
+              "networkSecurityGroup": {
+                "id": "[resourceId('Microsoft.Network/networkSecurityGroups', variables('nsgAppName'))]"
+              }
+            }
+          },
+          {
+            "name": "[parameters('subnets')[2].name]",
+            "properties": {
+              "copy": [
+                {
+                  "name": "serviceEndpoints",
+                  "count": "[length(parameters('subnets')[2].serviceEndpoints)]",
+                  "input": {
+                    "service": "[parameters('subnets')[2].serviceEndpoints[copyIndex('serviceEndpoints')]]"
+                  }
+                }
+              ],
+              "addressPrefix": "[parameters('subnets')[2].addressPrefix]",
+              "networkSecurityGroup": {
+                "id": "[resourceId('Microsoft.Network/networkSecurityGroups', variables('nsgDbName'))]"
+              }
+            }
+          },
+          {
+            "name": "[parameters('subnets')[3].name]",
+            "properties": {
+              "addressPrefix": "[parameters('subnets')[3].addressPrefix]"
             }
           }
-        },
-        "networkProfile": {
-          "networkInterfaces": [
-            {
-              "id": "[resourceId('Microsoft.Network/networkInterfaces', variables('nicName'))]"
-            }
-          ]
-        }
+        ]
       },
       "dependsOn": [
-        "[resourceId('Microsoft.Network/networkInterfaces', variables('nicName'))]"
+        "[resourceId('Microsoft.Network/networkSecurityGroups', variables('nsgAppName'))]",
+        "[resourceId('Microsoft.Network/networkSecurityGroups', variables('nsgDbName'))]",
+        "[resourceId('Microsoft.Network/networkSecurityGroups', variables('nsgWebName'))]"
       ]
     }
   ],
   "outputs": {
-    "vmId": {
+    "vnetId": {
       "type": "string",
-      "value": "[resourceId('Microsoft.Compute/virtualMachines', parameters('vmName'))]"
+      "value": "[resourceId('Microsoft.Network/virtualNetworks', variables('vnetName'))]"
     },
-    "publicIpAddress": {
+    "vnetName": {
       "type": "string",
-      "value": "[reference(resourceId('Microsoft.Network/publicIPAddresses', variables('pipName')), '2023-09-01').ipAddress]"
+      "value": "[variables('vnetName')]"
+    },
+    "subnetIds": {
+      "type": "object",
+      "value": {
+        "web": "[reference(resourceId('Microsoft.Network/virtualNetworks', variables('vnetName')), '2023-09-01').subnets[0].id]",
+        "app": "[reference(resourceId('Microsoft.Network/virtualNetworks', variables('vnetName')), '2023-09-01').subnets[1].id]",
+        "db": "[reference(resourceId('Microsoft.Network/virtualNetworks', variables('vnetName')), '2023-09-01').subnets[2].id]",
+        "bastion": "[reference(resourceId('Microsoft.Network/virtualNetworks', variables('vnetName')), '2023-09-01').subnets[3].id]"
+      }
+    },
+    "nsgIds": {
+      "type": "object",
+      "value": {
+        "web": "[resourceId('Microsoft.Network/networkSecurityGroups', variables('nsgWebName'))]",
+        "app": "[resourceId('Microsoft.Network/networkSecurityGroups', variables('nsgAppName'))]",
+        "db": "[resourceId('Microsoft.Network/networkSecurityGroups', variables('nsgDbName'))]"
+      }
     }
   }
 }

@@ -15,7 +15,7 @@ CYAN='\033[0;36m'
 NC='\033[0m'
 
 # 設定
-REPO_DIR="${REPO_DIR:-$HOME/dev/azure-landingzone-demo}"
+REPO_DIR="${REPO_DIR:-$HOME/dev/azure-alz-demo}"
 RESOURCE_GROUP="${RESOURCE_GROUP:-rg-landingzone-demo}"
 BRANCH_NAME="feature/demo-$(date +%Y%m%d-%H%M%S)"
 

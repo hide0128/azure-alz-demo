@@ -10,6 +10,7 @@ on:
     paths:
       - 'bicep/**'
       - '.github/workflows/cd.yml'
+  workflow_dispatch:
 
 permissions:
   id-token: write

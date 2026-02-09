@@ -15,7 +15,7 @@ CYAN='\033[0;36m'
 NC='\033[0m'
 
 # 設定
-REPO_DIR="${REPO_DIR:-$HOME/dev/azure-landingzone-demo}"
+REPO_DIR="${REPO_DIR:-$HOME/dev/azure-alz-demo}"
 RESOURCE_GROUP="${RESOURCE_GROUP:-rg-landingzone-demo}"
 BRANCH_NAME="feature/demo-$(date +%Y%m%d-%H%M%S)"
 
@@ -101,6 +101,16 @@ else
     print_warning "Azureにログインしていません"
     echo "az login --use-device-code を実行してください"
     exit 1
+fi
+
+print_step "1.3" "リソースグループの確認"
+if az group show --name "$RESOURCE_GROUP" > /dev/null 2>&1; then
+    print_success "リソースグループ存在確認: $RESOURCE_GROUP"
+else
+    print_warning "リソースグループが存在しません: $RESOURCE_GROUP"
+    print_info "リソースグループを作成します（リージョン: japaneast）"
+    az group create --name "$RESOURCE_GROUP" --location japaneast --output none
+    print_success "リソースグループを作成しました: $RESOURCE_GROUP"
 fi
 
 wait_for_enter
@@ -262,8 +272,10 @@ wait_for_enter
 
 print_header "Phase 7: CI成功デモ（エラー修正）"
 
-print_step "7.1" "エラーを修正（mainブランチから復元）"
-git checkout main -- bicep/main.bicep
+print_step "7.1" "エラーを修正"
+# エラー行を削除し、タイムスタンプを更新してCDトリガー用の差分を確保
+sed -i '/^resource broken$/d' bicep/main.bicep
+sed -i "s|^// Trigger CD -.*|// Trigger CD - $(date)|" bicep/main.bicep
 
 print_step "7.2" "修正後のBicep Build確認"
 if az bicep build --file bicep/main.bicep; then

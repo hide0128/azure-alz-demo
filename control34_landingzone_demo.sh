@@ -530,6 +530,39 @@ if git stash list | grep -q "demo-backup"; then
     fi
 fi
 
+# --- リソースグループ削除（デプロビジョニング） ---
+echo ""
+echo -e "${RED}━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━${NC}"
+echo -e "${RED}  デプロビジョニング: リソースグループの削除${NC}"
+echo -e "${RED}━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━${NC}"
+echo ""
+echo "リソースグループ「${RESOURCE_GROUP}」を削除しますか？"
+echo -e "${RED}  ※ この操作により以下の全リソースが完全に削除されます:${NC}"
+
+# 削除対象リソースの一覧表示
+az resource list --resource-group "$RESOURCE_GROUP" \
+    --query '[].{name:name, type:type}' -o tsv 2>/dev/null | while IFS=$'\t' read -r rname rtype; do
+    echo -e "    ${RED}✗${NC} $rname ($rtype)"
+done
+
+echo ""
+echo -e "${YELLOW}>>> リソースグループを削除しますか？ (yes/no)${NC}"
+echo -e "${YELLOW}    ※ 削除する場合は「yes」と入力してください${NC}"
+read -r delete_response
+if [ "$delete_response" = "yes" ]; then
+    print_info "リソースグループを削除中... (バックグラウンドで実行)"
+    if az group delete --name "$RESOURCE_GROUP" --yes --no-wait; then
+        print_success "リソースグループの削除を開始しました: $RESOURCE_GROUP"
+        print_info "削除完了まで数分かかる場合があります"
+        print_info "確認コマンド: az group show --name $RESOURCE_GROUP 2>/dev/null || echo '削除完了'"
+    else
+        print_warning "リソースグループの削除に失敗しました"
+    fi
+else
+    print_info "リソースグループの削除をスキップしました"
+    print_info "手動で削除する場合: az group delete --name $RESOURCE_GROUP --yes"
+fi
+
 # ==============================================================================
 # 完了
 # ==============================================================================

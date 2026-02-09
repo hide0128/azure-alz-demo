@@ -305,6 +305,58 @@ print_header "Phase 8: デプロイ確認"
 echo "PRをマージしましたか？"
 confirm_proceed
 
+# --- CDワークフロー監視 ---
+print_step "8.0" "CDワークフローの実行状況を監視"
+echo ""
+
+# mainブランチの最新CDワークフロー実行を取得
+print_info "CDワークフローの開始を待機中..."
+MAX_WAIT=30
+WAIT_COUNT=0
+RUN_ID=""
+while [ -z "$RUN_ID" ] && [ $WAIT_COUNT -lt $MAX_WAIT ]; do
+    RUN_ID=$(gh run list --workflow=cd.yml --branch=main --limit=1 --json databaseId,status,createdAt --jq '.[0].databaseId' 2>/dev/null || true)
+    if [ -z "$RUN_ID" ]; then
+        sleep 2
+        WAIT_COUNT=$((WAIT_COUNT + 1))
+        printf "."
+    fi
+done
+echo ""
+
+if [ -n "$RUN_ID" ]; then
+    print_info "CDワークフロー実行ID: $RUN_ID"
+    echo ""
+
+    # ワークフローのステータスをポーリング
+    POLL_INTERVAL=5
+    while true; do
+        RUN_STATUS=$(gh run view "$RUN_ID" --json status,conclusion --jq '.status' 2>/dev/null || true)
+        RUN_CONCLUSION=$(gh run view "$RUN_ID" --json status,conclusion --jq '.conclusion' 2>/dev/null || true)
+
+        if [ "$RUN_STATUS" = "completed" ]; then
+            echo ""
+            if [ "$RUN_CONCLUSION" = "success" ]; then
+                print_success "CDワークフローが正常に完了しました"
+            else
+                print_warning "CDワークフローの結果: $RUN_CONCLUSION"
+            fi
+            echo ""
+            # ワークフローのジョブ詳細を表示
+            gh run view "$RUN_ID" 2>/dev/null || true
+            break
+        else
+            printf "\r  ⏳ ワークフロー実行中... (ステータス: %s)  " "$RUN_STATUS"
+            sleep $POLL_INTERVAL
+        fi
+    done
+else
+    print_warning "CDワークフローが見つかりません。手動で確認してください。"
+fi
+
+echo ""
+
+# --- リソース確認 ---
 print_step "8.1" "リソースグループのリソース確認"
 echo ""
 az resource list --resource-group "$RESOURCE_GROUP" --output table || print_warning "リソース取得失敗"

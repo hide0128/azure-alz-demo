@@ -269,3 +269,5 @@ output nsgIds object = {
   db: nsgDb.id
 }
 // Trigger CD - Mon Feb  9 11:09:37 JST 2026
+resource broken
+resource broken

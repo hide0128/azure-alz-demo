@@ -268,5 +268,4 @@ output nsgIds object = {
   app: nsgApp.id
   db: nsgDb.id
 }
-// Trigger CD - Mon Feb  9 09:43:30 JST 2026
-resource broken
+// Trigger CD - Mon Feb  9 09:53:36 JST 2026

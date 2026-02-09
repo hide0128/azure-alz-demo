@@ -25,33 +25,35 @@ jobs:
       - name: Checkout repository
         uses: actions/checkout@v4
 
-      - name: Azure Login
+      - name: Azure Login (OIDC)
         uses: azure/login@v1
         with:
-          creds: ${{ secrets.AZURE_CREDENTIALS }}
+          client-id: ${{ secrets.AZURE_CLIENT_ID }}
+          tenant-id: ${{ secrets.AZURE_TENANT_ID }}
+          subscription-id: ${{ secrets.AZURE_SUBSCRIPTION_ID }}
 
       - name: Deploy Bicep Template
         run: |
           echo "=== Starting Landing Zone Deployment ==="
-          echo "Resource Group: ${{ secrets.RESOURCE_GROUP }}"
+          echo "Resource Group: ${{ secrets.AZURE_RESOURCE_GROUP }}"
           echo "Template: bicep/main.bicep"
-          
+
           az deployment group create \
             --name "lz-deployment-$(date +%Y%m%d-%H%M%S)" \
-            --resource-group ${{ secrets.RESOURCE_GROUP }} \
+            --resource-group ${{ secrets.AZURE_RESOURCE_GROUP }} \
             --template-file bicep/main.bicep \
             --parameters bicep/parameters.json
-          
+
           echo "=== Deployment Completed ==="
 
       - name: Show Deployment Outputs
         run: |
           echo "=== Deployment Outputs ==="
           DEPLOYMENT_NAME=$(az deployment group list \
-            --resource-group ${{ secrets.RESOURCE_GROUP }} \
+            --resource-group ${{ secrets.AZURE_RESOURCE_GROUP }} \
             --query '[0].name' -o tsv)
-          
+
           az deployment group show \
-            --resource-group ${{ secrets.RESOURCE_GROUP }} \
+            --resource-group ${{ secrets.AZURE_RESOURCE_GROUP }} \
             --name "$DEPLOYMENT_NAME" \
             --query 'properties.outputs' -o json

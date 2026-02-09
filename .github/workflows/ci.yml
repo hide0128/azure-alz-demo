@@ -24,10 +24,12 @@ jobs:
       - name: Checkout repository
         uses: actions/checkout@v4
 
-      - name: Azure Login
+      - name: Azure Login (OIDC)
         uses: azure/login@v1
         with:
-          creds: ${{ secrets.AZURE_CREDENTIALS }}
+          client-id: ${{ secrets.AZURE_CLIENT_ID }}
+          tenant-id: ${{ secrets.AZURE_TENANT_ID }}
+          subscription-id: ${{ secrets.AZURE_SUBSCRIPTION_ID }}
 
       - name: Bicep Build (Syntax Check)
         run: |
@@ -35,10 +37,36 @@ jobs:
           az bicep build --file bicep/main.bicep
           echo "Bicep build completed successfully"
 
+      - name: Ensure Resource Group Exists
+        run: |
+          echo "=== Checking/Creating Resource Group ==="
+          RG_NAME="${{ secrets.AZURE_RESOURCE_GROUP }}"
+          LOCATION="${{ secrets.AZURE_LOCATION || 'japaneast' }}"
+
+          # Check if resource group exists and is not being deleted
+          RG_STATE=$(az group show --name "$RG_NAME" --query "properties.provisioningState" -o tsv 2>/dev/null || echo "NotFound")
+
+          if [ "$RG_STATE" = "Deleting" ]; then
+            echo "Resource group is being deleted. Waiting for deletion to complete..."
+            while [ "$(az group exists --name "$RG_NAME")" = "true" ]; do
+              echo "Still deleting... waiting 10 seconds"
+              sleep 10
+            done
+            echo "Resource group deletion completed"
+            RG_STATE="NotFound"
+          fi
+
+          if [ "$RG_STATE" = "NotFound" ]; then
+            echo "Creating resource group: $RG_NAME in $LOCATION"
+            az group create --name "$RG_NAME" --location "$LOCATION"
+          else
+            echo "Resource group already exists with state: $RG_STATE"
+          fi
+
       - name: What-If Analysis
         run: |
           echo "=== What-If Analysis ==="
           az deployment group what-if \
-            --resource-group ${{ secrets.RESOURCE_GROUP }} \
+            --resource-group ${{ secrets.AZURE_RESOURCE_GROUP }} \
             --template-file bicep/main.bicep \
             --parameters bicep/parameters.json

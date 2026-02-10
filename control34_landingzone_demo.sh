@@ -76,6 +76,134 @@ show_workflow_url() {
 }
 
 # ==============================================================================
+# Phase 0: 環境リセット（デモ途中終了時の復旧用）
+# ==============================================================================
+
+reset_environment() {
+    print_header "Phase 0: 環境リセット"
+
+    print_info "以下の環境リセット処理を実行します："
+    echo "  - mainブランチへ切り替え"
+    echo "  - feature/demo-* ブランチの削除"
+    echo "  - 未マージPRのクローズ（オプション）"
+    echo "  - Bicep意図的エラーの削除"
+    echo "  - git stashのクリーンアップ"
+    echo "  - リソースグループの削除（オプション）"
+    echo ""
+
+    confirm_proceed
+
+    # mainブランチに切り替え
+    print_step "0.1" "mainブランチに切り替え"
+    git checkout main 2>/dev/null || print_warning "mainブランチへの切り替えに失敗しました"
+    git pull origin main 2>/dev/null || print_warning "git pullに失敗しました"
+    print_success "mainブランチに切り替え完了"
+
+    # feature/demo-* ブランチの削除
+    print_step "0.2" "デモ用ブランチの削除"
+    DEMO_BRANCHES=$(git branch --list 'feature/demo-*' | sed 's/^[* ]*//')
+    if [ -n "$DEMO_BRANCHES" ]; then
+        echo "以下のデモ用ブランチが見つかりました："
+        echo "$DEMO_BRANCHES" | while read -r branch; do
+            echo "  - $branch"
+        done
+        echo ""
+        echo "これらのブランチを削除しますか？ (y/n)"
+        read -r delete_branches
+        if [[ "$delete_branches" =~ ^[Yy]$ ]]; then
+            echo "$DEMO_BRANCHES" | while read -r branch; do
+                git branch -D "$branch" 2>/dev/null && print_success "削除: $branch" || print_warning "削除失敗: $branch"
+            done
+        fi
+    else
+        print_info "デモ用ブランチは見つかりませんでした"
+    fi
+
+    # 未マージPRの確認とクローズ
+    print_step "0.3" "未マージPRの確認"
+    OPEN_PRS=$(gh pr list --state open --json number,title,headRefName --jq '.[] | select(.headRefName | startswith("feature/demo-")) | "\(.number)\t\(.title)"' 2>/dev/null || echo "")
+    if [ -n "$OPEN_PRS" ]; then
+        echo "以下の未マージデモPRが見つかりました："
+        echo "$OPEN_PRS" | while IFS=$'\t' read -r pr_num pr_title; do
+            echo "  - PR #$pr_num: $pr_title"
+        done
+        echo ""
+        echo "これらのPRをクローズしますか？ (y/n)"
+        read -r close_prs
+        if [[ "$close_prs" =~ ^[Yy]$ ]]; then
+            echo "$OPEN_PRS" | while IFS=$'\t' read -r pr_num pr_title; do
+                gh pr close "$pr_num" 2>/dev/null && print_success "クローズ: PR #$pr_num" || print_warning "クローズ失敗: PR #$pr_num"
+            done
+        fi
+    else
+        print_info "未マージのデモPRは見つかりませんでした"
+    fi
+
+    # Bicepファイルから意図的なエラーを削除
+    print_step "0.4" "Bicepファイルのクリーンアップ"
+    if [ -f "bicep/main.bicep" ]; then
+        if grep -q "^resource broken" bicep/main.bicep 2>/dev/null; then
+            if [[ "$OSTYPE" == "darwin"* ]]; then
+                sed -i '' '/^resource broken$/d' bicep/main.bicep
+            else
+                sed -i '/^resource broken$/d' bicep/main.bicep
+            fi
+            print_success "意図的なエラー行を削除しました"
+        else
+            print_info "意図的なエラーは見つかりませんでした"
+        fi
+
+        # CD Triggerコメントの削除
+        if grep -q "^// Trigger CD -" bicep/main.bicep 2>/dev/null; then
+            if [[ "$OSTYPE" == "darwin"* ]]; then
+                sed -i '' '/^\/\/ Trigger CD -/d' bicep/main.bicep
+            else
+                sed -i '/^\/\/ Trigger CD -/d' bicep/main.bicep
+            fi
+            print_success "CD Triggerコメントを削除しました"
+        fi
+    else
+        print_warning "bicep/main.bicepが見つかりません"
+    fi
+
+    # git stashのクリーンアップ
+    print_step "0.5" "git stashのクリーンアップ"
+    if git stash list | grep -q "demo-backup"; then
+        echo "demo-backup関連のstashが見つかりました"
+        echo "stashをクリアしますか？ (y/n)"
+        read -r clear_stash
+        if [[ "$clear_stash" =~ ^[Yy]$ ]]; then
+            git stash clear 2>/dev/null && print_success "stashをクリアしました" || print_warning "stashのクリアに失敗しました"
+        fi
+    else
+        print_info "demo-backup関連のstashは見つかりませんでした"
+    fi
+
+    # リソースグループの削除確認
+    print_step "0.6" "リソースグループの削除確認"
+    if az group exists --name "$RESOURCE_GROUP" 2>/dev/null | grep -q "true"; then
+        echo "リソースグループ「$RESOURCE_GROUP」が存在します"
+        echo "リソースグループを削除しますか？ (yes/no)"
+        echo "※ 削除する場合は「yes」と入力してください"
+        read -r delete_rg
+        if [ "$delete_rg" = "yes" ]; then
+            print_info "リソースグループを削除中..."
+            az group delete --name "$RESOURCE_GROUP" --yes --no-wait 2>/dev/null && \
+                print_success "リソースグループの削除を開始しました" || \
+                print_warning "リソースグループの削除に失敗しました"
+        else
+            print_info "リソースグループの削除をスキップしました"
+        fi
+    else
+        print_info "リソースグループは存在しません"
+    fi
+
+    echo ""
+    print_success "環境リセット完了"
+    echo ""
+}
+
+# ==============================================================================
 # デモ開始
 # ==============================================================================
 
@@ -84,6 +212,7 @@ print_header "Control 3.4 Landing Zone基盤 CI/CDデモ"
 
 echo "このスクリプトは以下のデモを実行します："
 echo ""
+echo "  0. 環境リセット（デモ途中終了時の復旧用）※オプション"
 echo "  1. 環境確認（Azure CLI, リソースグループ）"
 echo "  2. リポジトリ・テンプレート・ワークフロー確認"
 echo "  3. ローカルでのBicep検証（build, what-if）"
@@ -95,6 +224,13 @@ echo ""
 echo "リポジトリ: $REPO_DIR"
 echo "リソースグループ: $RESOURCE_GROUP"
 echo ""
+
+echo -e "${YELLOW}>>> デモ実行前に環境をリセットしますか？ (y/n)${NC}"
+read -r do_reset
+if [[ "$do_reset" =~ ^[Yy]$ ]]; then
+    reset_environment
+    wait_for_enter
+fi
 
 confirm_proceed
 
@@ -487,6 +623,8 @@ if [ -n "$DEPLOY_NAME" ]; then
     echo -e "  ${CYAN}デプロイ名:${NC}   $DEPLOY_NAME"
     if [ "$DEPLOY_STATE" = "Succeeded" ]; then
         echo -e "  ${CYAN}状態:${NC}         ${GREEN}$DEPLOY_STATE ✓${NC}"
+    elif [ "$DEPLOY_STATE" = "Running" ]; then
+        echo -e "  ${CYAN}状態:${NC}         ${YELLOW}$DEPLOY_STATE ⏳${NC}"
     else
         echo -e "  ${CYAN}状態:${NC}         ${RED}$DEPLOY_STATE ✗${NC}"
     fi

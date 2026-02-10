@@ -282,11 +282,20 @@ wait_for_enter
 print_header "Phase 5: CI成功デモ（エラー修正）"
 
 print_step "5.1" "エラーを修正"
-sed -i '/^resource broken$/d' bicep/main.bicep
+# OS判定してsedの構文を変える（macOS=BSD sed, Linux=GNU sed）
+if [[ "$OSTYPE" == "darwin"* ]]; then
+    sed -i '' '/^resource broken$/d' bicep/main.bicep
+else
+    sed -i '/^resource broken$/d' bicep/main.bicep
+fi
 
 # CDトリガー用のタイムスタンプ更新（存在しない場合は末尾に追加）
 if grep -q "^// Trigger CD -" bicep/main.bicep; then
-    sed -i "s|^// Trigger CD -.*|// Trigger CD - $(date)|" bicep/main.bicep
+    if [[ "$OSTYPE" == "darwin"* ]]; then
+        sed -i '' "s|^// Trigger CD -.*|// Trigger CD - $(date)|" bicep/main.bicep
+    else
+        sed -i "s|^// Trigger CD -.*|// Trigger CD - $(date)|" bicep/main.bicep
+    fi
 else
     echo "// Trigger CD - $(date)" >> bicep/main.bicep
 fi

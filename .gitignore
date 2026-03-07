@@ -1,9 +1,1 @@
 .DS_Store
-
-# Secrets
-.env
-.env.*
-*.pem
-*.key
-*secret*
-*credential*

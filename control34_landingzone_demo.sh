@@ -6,6 +6,50 @@
 
 set -e
 
+# 必要なCLIツールとバージョン要件
+# - Azure CLI: 2.55.0 以上
+# - GitHub CLI (gh): 2.40.0 以上
+# - Git: 2.40.0 以上
+check_dependencies() {
+    local errors=0
+
+    if ! command -v az &>/dev/null; then
+        echo "ERROR: Azure CLI (az) がインストールされていません。https://aka.ms/installazurecli" >&2
+        errors=$((errors + 1))
+    else
+        local az_ver
+        az_ver=$(az version --query '"azure-cli"' -o tsv 2>/dev/null)
+        local az_required="2.55.0"
+        if ! printf '%s\n%s\n' "$az_required" "$az_ver" | sort -V -C 2>/dev/null; then
+            echo "WARNING: Azure CLI $az_ver は推奨バージョン $az_required 未満です。" >&2
+        fi
+    fi
+
+    if ! command -v gh &>/dev/null; then
+        echo "ERROR: GitHub CLI (gh) がインストールされていません。https://cli.github.com/" >&2
+        errors=$((errors + 1))
+    else
+        local gh_ver
+        gh_ver=$(gh --version | head -1 | awk '{print $3}')
+        local gh_required="2.40.0"
+        if ! printf '%s\n%s\n' "$gh_required" "$gh_ver" | sort -V -C 2>/dev/null; then
+            echo "WARNING: GitHub CLI $gh_ver は推奨バージョン $gh_required 未満です。" >&2
+        fi
+    fi
+
+    if ! command -v git &>/dev/null; then
+        echo "ERROR: Git がインストールされていません。https://git-scm.com/" >&2
+        errors=$((errors + 1))
+    fi
+
+    if [ "$errors" -gt 0 ]; then
+        echo "依存ツールが不足しています。インストール後に再実行してください。" >&2
+        exit 1
+    fi
+}
+
+check_dependencies
+
 # 色の定義
 RED='\033[0;31m'
 GREEN='\033[0;32m'

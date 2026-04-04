@@ -170,13 +170,12 @@ az ad sp delete --id "<appId>"
 ### Step 5: ローカル環境のクリーンアップ（任意）
 
 ```bash
-# Bicep ビルドで生成された ARM テンプレートを削除
-rm -f bicep/main.json
-
 # git stash の確認と削除
 git stash list
 git stash clear  # すべての stash を削除する場合
 ```
+
+> `bicep/main.json` は `.gitignore` で管理対象外のため、手動削除は不要です。
 
 ---
 

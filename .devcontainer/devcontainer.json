@@ -1,6 +1,8 @@
 {
   "name": "Claude Code Environment",
-  "image": "claude-code-env",
+  "build": {
+    "dockerfile": "Dockerfile"
+  },
   "customizations": {
     "vscode": {
       "extensions": [
